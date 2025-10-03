@@ -93,3 +93,32 @@
   </style>
 </head>
 <body>
+
+  <div class="container">
+    <div id="start-screen">
+      <h1>關於我轉生<br>變成毛毛蟲這檔事</h1>
+      <h4>當人生重啟，卻變成一隻毛毛蟲…<br>命運已織就，踏上覺醒之路！</h4>
+      <div class="intro">
+        <h5>一覺醒來，我發現自己不是人類了。沒錯，我轉生了——變成一隻微不足道的毛毛蟲。在這片充滿掠食者的叢林，唯一的生存之道，就是「吃、躲、蛻變」。想活到成為蝴蝶？呵，我得先撐過那些想把我當午餐的傢伙！</h5>
+        <h5>立體劇場電影《蝴蝶奇幻旅程》的故事化為這款肉鴿小遊戲。從幼蟲開始，經歷掙扎、蛻變、飛翔。</h5>
+        <h5>蟲到蝶的傳說，現在開始書寫！</h5>
+        <h3>🔍 遊戲說明</h3>
+        <p>🌌 <strong>背景故事</strong><br>這是一款肉鴿探索的生存遊戲。你轉生成為一隻帝王斑蝶的幼蟲，從孵化開始，必須拼盡全力存活、覓食、閃避天敵，最終完成命定的蛻變。</p>
+        <p>🧠 <strong>玩法簡介</strong><br>以虛擬搖桿或 WASD 鍵操作毛毛蟲，探索環境、收集食物補充能量。</p>
+        <p>🏆 <strong>目標與結局</strong><br>當能量足夠、蛻變條件達成，你將進入蝴蝶階段，開啟飛行與遷徙之章。命運的終點可能是榮耀與自由，也可能是折翼墜地——一切由你決定！</p>
+      </div>
+      <p>註：本遊戲介面設計以手機使用者為主，於電腦瀏覽時部分內容可能無法完整顯示。</p>
+      <button onclick="startGame()">開始探險</button>
+    </div>
+    
+  </div>
+
+  <script>
+    function startGame() {
+      localStorage.removeItem('gameTime');
+      location.href = "https://bonbonchou.github.io/Butterfly_Journey/game.html";
+    }
+  </script>
+
+</body>
+</html>
