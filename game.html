@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拯救大鹽湖遊戲</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background-color: #f0f8ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.game-container {
+  text-align: center;
+  border: 2px solid #ddd;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 350px;
+}
+
+h1 {
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+/* 湖的背景將改用三張圖片切換 */
+.lake {
+  width: 100%;
+  height: 200px;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid #00bfff;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  position: relative;
+}
+
+/* 水位視覺已不再使用，但保留節省改動 */
+.water {
+  display: none;
+}
+
+.floating-text {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #0077ff;
+  font-weight: bold;
+  opacity: 0;
+  animation: floatUp 0.5s ease-out forwards;
+}
+
+@keyframes floatUp {
+  0% { opacity: 1; bottom: 10px; }
+  100% { opacity: 0; bottom: 40px; }
+}
+
+.controls p {
+  font-size: 18px;
+  margin: 10px 0;
+}
+
+#click-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #00bfff;
+  border: none;
+  border-radius: 5px;
+  color: white;
+}
+
+#click-button:active {
+  background-color: #0099cc;
+}
+
+/* 彈窗 */
+#knowledge-modal, #correct-modal, #wrong-modal, #upgrade-modal, #question-modal, #ready-modal, #end-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 320px;
+  text-align: center;
+}
+
+.upgrade-option, .answer-option, #restart-button {
+  margin: 8px 0;
+  padding: 8px;
+  background-color: #00bfff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  width: 90%;
+}
+
+.upgrade-option:hover, .answer-option:hover, #restart-button:hover {
+  background-color: #0099cc;
+}
+</style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>拯救乾涸的大鹽湖</h1>
+    <div class="lake" id="lake"></div>
+
+    <div class="controls">
+      <p>水量: <span id="water-level">0%</span></p>
+      <p>剩餘時間: <span id="timer">45</span>秒</p>
+      <button id="click-button">點擊拯救!</button>
+    </div>
+  </div>
+
+  <div id="upgrade-modal">
+    <div class="modal-content" id="modal-content">
+      <p id="modal-message"></p>
+      <div id="upgrade-options"></div>
+    </div>
+  </div>
+
+  <div id="question-modal">
+    <div class="modal-content" id="question-content">
+      <p id="question-text"></p>
+      <div id="answer-options"></div>
+    </div>
+  </div>
+
+  <div id="ready-modal">
+    <div class="modal-content"><p>準備答題...</p></div>
+  </div>
+
+  <div id="correct-modal" style="display:none;">
+  <div class="modal-content">
+    <p>答對了，真厲害!</p>
+  </div>
+</div>
+
+<div id="wrong-modal" style="display:none;">
+  <div class="modal-content">
+    <p>答錯了，再加油!</p>
+  </div>
+</div>
+
+<div id="knowledge-modal" style="display:none;">
+  <div class="modal-content">
+    <p id="knowledge-text"></p>
+    <button id="knowledge-confirm" class="upgrade-option">確定</button>
+  </div>
+</div>
+
+  <div id="end-screen">
+    <div class="modal-content">
+      <h2 id="end-title">遊戲結束！</h2>
+      <p id="final-score"></p>
+      <p id="end-message"></p>
+      <button id="restart-button">重新開始</button>
+    </div>
+  </div>
+
+<script>
+let waterLevel = 0;
+let timeLeft = 45;
+let clickPower = 0.2;
+let autoFillActive = false;
+let autoFillRate = 1000;
+let autoFillChance = 0;
+let autoFillMultiplier = 2;
+let autoFillTimer = null;
+let firstCorrect = false;
+let gameEnded = false;
+
+const lake = document.getElementById("lake");
+const waterLevelDisplay = document.getElementById("water-level");
+const timerDisplay = document.getElementById("timer");
+const clickButton = document.getElementById("click-button");
+
+const modal = document.getElementById("upgrade-modal");
+const modalMessage = document.getElementById("modal-message");
+const upgradeOptions = document.getElementById("upgrade-options");
+
+const questionModal = document.getElementById("question-modal");
+const questionText = document.getElementById("question-text");
+const answerOptions = document.getElementById("answer-options");
+
+const readyModal = document.getElementById("ready-modal");
+const endScreen = document.getElementById("end-screen");
+const finalScore = document.getElementById("final-score");
+const endTitle = document.getElementById("end-title");
+const endMessage = document.getElementById("end-message");
+
+let upgradeCounts = { option1: 0, option2: 0, option3: 0, option4: 0 };
+
+/* === 題庫 === */
+const firstQuestion = {
+  time: 40,
+  text: "請問以下哪個角色的想法或態度最有助於減緩大鹽湖的缺水危機？",
+  options: [
+    "農夫:遇到豐水年時，認為自己很幸運，不需要再節約用水",
+    "青年:大鹽湖缺水是上一代惹的禍，他們自行解決就好",
+    "州政府:維持舊有法律，節省下來的水不須回流大鹽湖",
+    "牧場主:和州政府配合，投資新技術以使用更少的水種植農作物"
+  ],
+  correct: 3
+};
+
+const otherQuestions = [
+  {
+    time: 35,
+    text: "以下何者和大鹽湖現今面臨的危機較無關係？",
+    options: [
+      "因全球暖化，融冰增加造成水位上升且破壞天然滑雪場",
+      "鹽度上升，致使多種微生物、豐年蝦等都難以生存",
+      "湖床乾涸導致更多有毒沙塵飛揚",
+      "水位下降使孤島和大陸相連，捕食鳥類的掠食者得以進入"
+    ],
+    correct: 0
+  },
+  {
+    time: 25,
+    text: "以下何者在大鹽湖生態系中並非扮演主要角色？",
+    options: ["浮游植物", "豐年蝦", "魚類", "候鳥"],
+    correct: 2
+  },
+  {
+    time: 20,
+    text: "以下敘述何者正確？",
+    options: [
+      "大鹽湖的湖水密度之高，使人們可以輕易浮在水上",
+      "數量驚人的鹽水蒼蠅成為候鳥豐富的食物來源",
+      "不同棵白楊樹間因能共享水資源，使樹群成為地球上最大生物體之一",
+      "喇叭天鵝曾一度瀕臨滅絕，如今有數萬隻，是復育成功的案例",
+      "以上皆是"
+    ],
+    correct: 4
+  },
+  {
+    time: 10,
+    text: "以下何者消耗了最多大鹽湖上游的水？",
+    options: ["家庭用水", "農業", "植物蒸散作用", "工業"],
+    correct: 1
+  }
+];
+
+/* === 知識視窗內容 === */
+const knowledgeTexts = {
+  "請問以下哪個角色的想法或態度最有助於減緩大鹽湖的缺水危機？":
+    "農夫在豐水年仍須未雨綢繆節約用水。<br><br>大鹽湖的命運和青年的未來息息相關，因此他們應積極參與保護它的行動。<br><br>州政府修改法律有助使節省下來的水回流大鹽湖。",
+
+  "以下何者和大鹽湖現今面臨的危機較無關係？":
+    "大鹽湖現今的主要危機為水位不足，此現象導致孤島和大陸相連，使捕食鳥類的掠食者得以進入孤島。<br><br>另外，總水量下降使鹽度上升，生物因此更加難以生存。<br><br>乾涸的湖床也讓更多有毒沙塵被風吹起。",
+
+  "以下何者在大鹽湖生態系中並非扮演主要角色？":
+    "浮游植物、豐年蝦、候鳥皆是大鹽湖生態系的一份子，但湖水鹽度太高，魚類無法生存。",
+
+  "以下何者消耗了最多大鹽湖上游的水？":
+    "農業用水占大鹽湖上游之引用水的60%以上。"
+};
+
+// 排序題目
+const shuffled = otherQuestions.sort(() => Math.random() - 0.5);
+const questionSchedule = [
+  firstQuestion,
+  { ...shuffled[0], time: 35 },
+  { ...shuffled[1], time: 25 },
+  { ...shuffled[2], time: 20 },
+  { ...shuffled[3], time: 10 }
+];
+
+/*===============
+  ⭐ 切換背景圖片
+===============*/
+function updateLakeImage() {
+  if (waterLevel < 33) {
+    lake.style.backgroundImage =
+     "url('https://raw.githubusercontent.com/tam004team/Great_salt_lake/main/images/Salt_lake(gif)-46.png')";
+  } else if (waterLevel < 67) {
+    lake.style.backgroundImage =
+     "url('https://raw.githubusercontent.com/tam004team/Great_salt_lake/main/images/Salt_lake(gif)-23.png')";
+  } else {
+    lake.style.backgroundImage =
+     "url('https://raw.githubusercontent.com/tam004team/Great_salt_lake/main/images/Salt_lake(gif)-0.png')";
+  }
+}
+
+/* 舊 visual 效果全取消，只更新數字 & 圖片 */
+function updateWaterLevel() {
+  if (waterLevel > 100) waterLevel = 100;
+  waterLevelDisplay.textContent = `${parseFloat(waterLevel.toFixed(2))}%`;
+  updateLakeImage();
+
+  if (!gameEnded && waterLevel >= 100) endGame(true);
+}
+
+function showFloatingText(amount) {
+  const text = document.createElement("div");
+  text.className = "floating-text";
+  text.textContent = `+${parseFloat(amount.toFixed(2))}%`;
+  lake.appendChild(text);
+  setTimeout(() => text.remove(), 500);
+}
+
+/* 自動注水 */
+function startAutoFill() {
+  if (autoFillTimer) clearInterval(autoFillTimer);
+  autoFillActive = true;
+  autoFillTimer = setInterval(() => {
+    let addAmount = 1;
+    if (Math.random() < autoFillChance) addAmount = autoFillMultiplier;
+    waterLevel += addAmount;
+    updateWaterLevel();
+    showFloatingText(addAmount);
+  }, autoFillRate);
+}
+
+/* 計時暫停 / 恢復 */
+function pauseTimer() {
+  clearInterval(timerInterval);
+  if (autoFillTimer) clearInterval(autoFillTimer);
+}
+
+function resumeTimer() {
+  startTimer();
+  if (autoFillActive) startAutoFill();
+}
+
+function showReadyMessage(nextAction) {
+  pauseTimer();
+  readyModal.style.display = "flex";
+  setTimeout(() => {
+    readyModal.style.display = "none";
+    nextAction();
+  }, 2000);
+}
+
+/* 題目 */
+function showQuestion(q) {
+  pauseTimer();
+  questionModal.style.display = "flex";
+  questionText.textContent = q.text;
+  answerOptions.innerHTML = "";
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "answer-option";
+    btn.textContent = opt;
+    btn.onclick = () => handleAnswer(q, i);
+    answerOptions.appendChild(btn);
+  });
+}
+
+function handleAnswer(q, i) {
+  questionModal.style.display = "none";
+  pauseTimer();
+
+  const correctModal = document.getElementById("correct-modal");
+  const wrongModal = document.getElementById("wrong-modal");
+  const knowledgeModal = document.getElementById("knowledge-modal");
+  const knowledgeText = document.getElementById("knowledge-text");
+  const knowledgeConfirm = document.getElementById("knowledge-confirm");
+
+  const hasKnowledge = knowledgeTexts[q.text] !== undefined;
+
+  // 處理知識視窗後的動作（答對流程 or 答錯流程）
+  function continueAfterKnowledge() {
+    // ⭐ 答對
+    if (i === q.correct) {
+      // 第一題：給新機器
+      if (!firstCorrect) {
+        firstCorrect = true;
+        modal.style.display = "flex";
+        modalMessage.textContent = "獲得新機器，可自動注水！";
+        upgradeOptions.innerHTML = "";
+        setTimeout(() => {
+          modal.style.display = "none";
+          startAutoFill();
+          resumeTimer();
+        }, 1000);
+      } else {
+        // 其他題：升級選單
+        showUpgradeMenu();
+      }
+    }
+    else {
+      // ⭐ 答錯 → 繼續遊戲
+      resumeTimer();
+    }
+  }
+
+  // =======================
+  // ⭐ 先顯示答對 / 答錯
+  // =======================
+  if (i === q.correct) {
+    correctModal.style.display = "flex";
+    setTimeout(() => {
+      correctModal.style.display = "none";
+
+      // ⭐ 若有知識 → 顯示知識視窗
+      if (hasKnowledge) {
+        knowledgeText.innerHTML = knowledgeTexts[q.text];
+        knowledgeModal.style.display = "flex";
+
+        knowledgeConfirm.onclick = () => {
+          knowledgeModal.style.display = "none";
+          continueAfterKnowledge();
+        };
+      } else {
+        continueAfterKnowledge();
+      }
+
+    }, 1000);
+  }
+  else {
+    wrongModal.style.display = "flex";
+    setTimeout(() => {
+      wrongModal.style.display = "none";
+
+      if (hasKnowledge) {
+        knowledgeText.innerHTML = knowledgeTexts[q.text];
+        knowledgeModal.style.display = "flex";
+
+        knowledgeConfirm.onclick = () => {
+          knowledgeModal.style.display = "none";
+          continueAfterKnowledge();
+        };
+
+      } else {
+        continueAfterKnowledge();
+      }
+    }, 1000);
+  }
+}
+
+/* 升級選單 */
+function showUpgradeMenu() {
+  pauseTimer();
+  modal.style.display = "flex";
+  modalMessage.textContent = "選擇一項升級";
+  upgradeOptions.innerHTML = "";
+
+  if (upgradeCounts.option1 < 2) addUpgradeOption("每次點擊注水量上升0.05%", "option1");
+  if (upgradeCounts.option2 < 2) addUpgradeOption("自動注水時間間隔縮短20%", "option2");
+  if (upgradeCounts.option3 < 2) addUpgradeOption("自動注水量加倍之機率上升25%", "option3");
+  if (upgradeCounts.option3 > 0 && upgradeCounts.option4 < 1) addUpgradeOption("每次自動注水量加倍時，倍率上升至3倍", "option4");
+}
+
+function addUpgradeOption(text, key) {
+  const btn = document.createElement("button");
+  btn.className = "upgrade-option";
+  btn.textContent = text;
+  btn.onclick = () => selectUpgrade(key);
+  upgradeOptions.appendChild(btn);
+}
+
+function selectUpgrade(key) {
+  upgradeCounts[key]++;
+
+  if (key === "option1") clickPower = clickPower < 0.25 ? 0.25 : 0.3;
+  else if (key === "option2") {
+    autoFillRate = autoFillRate === 1000 ? 800 : 640;
+    if (autoFillActive) startAutoFill();
+  }
+  else if (key === "option3") autoFillChance = autoFillChance === 0 ? 0.25 : 0.5;
+  else if (key === "option4") autoFillMultiplier = 3;
+
+  modal.style.display = "none";
+  resumeTimer();
+}
+
+/* 計時器 */
+let timerInterval;
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    timerDisplay.textContent = timeLeft;
+
+    const q = questionSchedule.find(q => q.time === timeLeft);
+    if (q) showReadyMessage(() => showQuestion(q));
+
+    if (timeLeft <= 0) endGame();
+  }, 1000);
+}
+
+/* 結束畫面 */
+function endGame(isEarlyWin = false) {
+  if (gameEnded) return;
+  gameEnded = true;
+
+  clearInterval(timerInterval);
+  if (autoFillTimer) clearInterval(autoFillTimer);
+  clickButton.disabled = true;
+
+  endScreen.style.display = "flex";
+  finalScore.textContent = `你的最終水位是 ${parseFloat(waterLevel.toFixed(2))}%`;
+
+  if (isEarlyWin || waterLevel >= 67) {
+    endTitle.textContent = "🎉 恭喜過關！";
+    endMessage.textContent = "恭喜!大鹽湖水位已恢復正常，謝謝你的努力!";
+  } else {
+    endTitle.textContent = "😢 挑戰失敗";
+    endMessage.textContent = "好可惜!大鹽湖水位仍不足，再接再厲!";
+  }
+}
+
+document.getElementById("restart-button").onclick = () => {
+  location.href = "index.html";
+};
+
+/* 點擊注水 */
+clickButton.addEventListener("click", () => {
+  if (waterLevel < 100 && !gameEnded) {
+    waterLevel += clickPower;
+    updateWaterLevel();
+    showFloatingText(clickPower);
+  }
+});
+
+/* 開局設定 */
+updateLakeImage();
+updateWaterLevel();
+startTimer();
+</script>
+</body>
+</html>
